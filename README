@@ -1,0 +1,13 @@
+To run the tests for solutions generated from Chisel, 
+you need to include the absolute path to the synthesized 
+files [Name].v in the solution files located in the task 
+directories of the synthesis school. Add the following line 
+to the solution files:
+
+verilog
+Copy
+`include "[path]"
+
+Replace [path] with the absolute path to the synthesized 
+Verilog files ([Name].v). This ensures that the necessary 
+modules are correctly referenced during simulation or synthesis.
