@@ -1,3 +1,5 @@
+https://github.com/yuri-panchul/systemverilog-homework.git (Original git repository of Synt. school)
+
 To run the tests for solutions generated from Chisel, 
 you need to include the absolute path to the synthesized 
 files [Name].v in the solution files located in the task 
