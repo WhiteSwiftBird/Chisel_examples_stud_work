@@ -11,3 +11,13 @@ to the solution files or edit it:
 Replace [path] with your own absolute path to the synthesized 
 Verilog files ([Name].v). This ensures that the necessary 
 modules are correctly referenced during simulation or synthesis.
+---------------------------------------------------------------
+Чтобы запустить тесты школы синтеза для соответсвующих файлов верилог,
+созданных из кода на Chisel на своем устройстве, необходимо модифицировать
+файлы соответсвующих заданий (в папке systemverilog-homework). Все синтезированные 
+модули уже импортированны и подключены в файлы, однако, для работы необходимо в строке
+
+`include "[path]"
+
+указать абсолютный путь на месте [path] к исследуемым решениям (файлы в папках заданий
+с низваниями [Chisel_gen_Name].v)
