@@ -1,25 +1,26 @@
-https://github.com/yuri-panchul/systemverilog-homework.git (Original git repository of Synt. school)
+In order for the modules to be synthesized in System Verilog into the desired directory, you must specify the path to it
+inside the structure. 
 
-To run the synthesis school tests for the corresponding Verilog files generated 
-from Chisel code on your local machine, you need to modify the files of the 
-corresponding tasks (located in the systemverilog-homework folder). All synthesized
-modules have already been imported and connected in the files; however, to make 
-them work, you need to specify the absolute path in the line
+emitVerilog(new Mux_Variant_1, 
+    Array("--target-dir", "[path]"))
 
-include "[path]"
+Where [path] is the relative or absolute path to the required directory.
 
-replacing [path] with the absolute path to the solutions under investigation 
-(files in the task folders with names like [Chisel_gen_Name].v).
+Testing of the generated modules was carried out using the verification environment of the Synthesis School
+digital circuits. Their assignments are located in the repository https://github.com/yuri-panchul/systemverilog-homework .git
+The correspondences at the time of the work are listed below (2025)
 ---------------------------------------------------------------
-Чтобы запустить тесты школы синтеза для соответсвующих файлов верилог,
-созданных из кода на Chisel на своем устройстве, необходимо модифицировать
-файлы соответсвующих заданий (в папке systemverilog-homework). Все синтезированные 
-модули уже импортированны и подключены в файлы, однако, для работы необходимо в строке
+Чтобы модули синтезировались в System Verilog в нужную директорию, необходимо указать путь к ней
+внутри конструкции 
 
-`include "[path]"
+emitVerilog(new Mux_Variant_1, 
+    Array("--target-dir", "[path]"))
 
-указать абсолютный путь на месте [path] к исследуемым решениям (файлы в папках заданий
-с низваниями [Chisel_gen_Name].v)
+Где на месте [path] относительный или абсолютный путь до требуемой директории.
+
+Тестирование генерируемых модулей очуществлялось с помощью верификационного окружения Школы Синтеза
+цифровых схем. Задания к ним расположены в репозитории https://github.com/yuri-panchul/systemverilog-homework.git
+Соответствия на момент выполнения работы (2025 г.) указаны ниже
 
 ----------------------------------------------------------------
 -----------------------Chisel solutions-------------------------
@@ -29,3 +30,13 @@ replacing [path] with the absolute path to the solutions under investigation
         TASK        |   PROJECKT FOLDER
 --------------------|--------------------
 01_01_mux_question  |      mux4task1
+
+
+
+Структура репозитория
+
+generated_SV_files - содержит сгенерированные на System Verilog файлы из Chisel кода
+
+mux4_2 - пример реализации мультиплексора mux4task1, но с заданными зарание именама входов и выходов без io_, 
+         для простоты использования в других модулях
+

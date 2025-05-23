@@ -1,5 +1,4 @@
 import chisel3._
-import chisel3.stage.ChiselStage
 
 class Mux_Variant_1 extends RawModule {
   val io = IO(new Bundle {
@@ -16,8 +15,7 @@ class Mux_Variant_1 extends RawModule {
                        , Mux(io.sel(0), io.d1, io.d0))
 }
 
-object Mux_Variant_1 extends App 
-{
-    (new ChiselStage).emitVerilog(new Mux_Variant_1, 
-    Array("--target-dir", "../systemverilog-homework/01_combinational_logic/01_01_mux_question"))
+object Mux_Variant_1 extends App {
+  emitVerilog(new Mux_Variant_1, 
+    Array("--target-dir", "../generated_SV_files/mux4_1/"))
 }
