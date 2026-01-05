@@ -46,14 +46,14 @@ trait ALU_cmd extends  SCR1Config{
     val SCR1_IALU_CMD_SRA: UInt = opcodes("SRA")         // 14.U - op1 >>> op2
 
     // RVM extension opcodes
-    val SCR1_IALU_CMD_MUL: UInt = opcodes("MUL")       // low(unsig(op1) * unsig(op2))
-    val SCR1_IALU_CMD_MULHU: UInt = opcodes("MULHU")   // high(unsig(op1) * unsig(op2))
-    val SCR1_IALU_CMD_MULHSU: UInt = opcodes("MULHSU") // high(op1 * unsig(op2))
-    val SCR1_IALU_CMD_MULH: UInt = opcodes("MULH")     // high(op1 * op2)
-    val SCR1_IALU_CMD_DIV: UInt = opcodes("DIV")       // op1 / op2
-    val SCR1_IALU_CMD_DIVU: UInt = opcodes("DIVU")     // op1 u/ op2
-    val SCR1_IALU_CMD_REM: UInt = opcodes("REM")       // op1 % op2
-    val SCR1_IALU_CMD_REMU: UInt = opcodes("REMU")     // op1 u% op2
+    val SCR1_IALU_CMD_MUL: UInt = opcodes("MUL")       // 0хF low(unsig(op1) * unsig(op2))
+    val SCR1_IALU_CMD_MULHU: UInt = opcodes("MULHU")   // 0x10 high(unsig(op1) * unsig(op2))
+    val SCR1_IALU_CMD_MULHSU: UInt = opcodes("MULHSU") // 0x11 high(op1 * unsig(op2))
+    val SCR1_IALU_CMD_MULH: UInt = opcodes("MULH")     // 0x12 high(op1 * op2)
+    val SCR1_IALU_CMD_DIV: UInt = opcodes("DIV")       // 0x13 op1 / op2
+    val SCR1_IALU_CMD_DIVU: UInt = opcodes("DIVU")     // 0x14 op1 u/ op2
+    val SCR1_IALU_CMD_REM: UInt = opcodes("REM")       // 0x15 op1 % op2
+    val SCR1_IALU_CMD_REMU: UInt = opcodes("REMU")     // 0x16 op1 u% op2
 }
 
 
@@ -68,7 +68,7 @@ trait RVM_ext_local_params extends SCR1Config{
     val SCR1_MDU_SUM_WIDTH =  if(SCR1_FAST_MUL) {SCR1_XLEN + 1} else {SCR1_XLEN + SCR1_MUL_WIDTH} 
 
     val SCR1_DIV_WIDTH = 1
-    val SCR1_DIV_CNT_INIT = 1.U(32.W)
+    val SCR1_DIV_CNT_INIT = 1.U(32.W) << (SCR1_XLEN / SCR1_DIV_WIDTH - 2)
 }
 
 
@@ -150,8 +150,10 @@ class Logic_ops extends ALU_cmd with RVM_ext_local_params{
         clock: Clock,
         rst_n: Bool
     ): (SInt, Bool) = {
-        // Wrap entire logic in single clock domain
+        // Умножение и деление оссуществляется внутри клокового домена
         withClockAndReset(clock, !rst_n) {
+
+        //объявление связей и их дефолтных значений
         val result = WireDefault(0.S(SCR1_XLEN.W))
         val res_rdy_o = Wire(Bool())
         res_rdy_o := false.B
@@ -159,6 +161,7 @@ class Logic_ops extends ALU_cmd with RVM_ext_local_params{
         val mdu_fsm_next = WireDefault(IDLE)
         val mdu_iter_cnt_next = Wire(UInt(SCR1_XLEN.W))
 
+        // является команда командой умножения или деления или нет
         val mdu_cmd_div = cmd === SCR1_IALU_CMD_DIV ||
                           cmd === SCR1_IALU_CMD_DIVU ||
                           cmd === SCR1_IALU_CMD_REM ||
@@ -169,14 +172,24 @@ class Logic_ops extends ALU_cmd with RVM_ext_local_params{
                           cmd === SCR1_IALU_CMD_MULHU ||
                           cmd === SCR1_IALU_CMD_MULHSU
 
+        //Какая из операций выполняется: никакой, умножение, деление (возвращает одно из значений MuxCase(default, Seq(
+                                                                        //     condition1 -> value1,
+                                                                        //     condition2 -> value2,
+                                                                        //     condition3 -> value3,
+                                                                        //     // ...
+                                                                        // )))
         val mdu_cmd = MuxCase(SCR1_IALU_MDU_NONE, Seq(
             mdu_cmd_div -> SCR1_IALU_MDU_DIV,
             mdu_cmd_mul -> SCR1_IALU_MDU_MUL
         ))
 
+        //оба оепратора не нулевые
         val main_ops_non_zero = op_1.orR && op_2.orR
+
+        //различаются ли знаки операндов для знакового умножения
         val main_ops_diff_sgn = op_1(SCR1_XLEN-1) ^ op_2(SCR1_XLEN-1)
 
+        //итерационная операция или нет (быстрое умножение подразумевает умножение за один такт)
         val mdu_cmd_is_iter = if (SCR1_FAST_MUL) {
             mdu_cmd_div
         } else {
@@ -186,21 +199,36 @@ class Logic_ops extends ALU_cmd with RVM_ext_local_params{
         //-------------------------------------------------------------------------------
         // MUL/DIV FSM
         //-------------------------------------------------------------------------------
+        //создание регистра состояний КА и проверка на то в каком состоянии он находится
         val mdu_fsm_ff = RegInit(SCR1_IALU_MDU_FSM_IDLE)
         val mdu_fsm_idle = mdu_fsm_ff === SCR1_IALU_MDU_FSM_IDLE
         val mdu_fsm_corr = mdu_fsm_ff === SCR1_IALU_MDU_FSM_CORR
 
+        //объявления связей для деления
+        // - перенос остатка
+        // - остаток
+        // - текущая часть для вычисления
+        // -следующий бит, присоединяемый к текущей
+
         val div_res_rem_c = Wire(Bool())
-        val div_res_rem = Wire(UInt((SCR1_MDU_SUM_WIDTH-1).W))
+        val div_res_rem = Wire(UInt(SCR1_XLEN.W))
         val div_res_quo = Wire(UInt(SCR1_XLEN.W))
         val div_quo_bit = Wire(Bool())
 
+        // вспомогательный сигнал для деления
         val div_cmd = Cat(
             cmd === SCR1_IALU_CMD_REM  || cmd === SCR1_IALU_CMD_REMU,
             cmd === SCR1_IALU_CMD_REMU || cmd === SCR1_IALU_CMD_DIVU
         )
 
-        // div_cmd
+        // div_cmd:
+        // - знаковые ли операции
+        // - проверка старших битов операндов для проверки знака
+        // - является ли инструкция просто DIV (1) или одной из 3 других (0)
+        // - является ли это операцией поиска остатка
+        // - проверка корректности выполненной операции
+
+
         val div_ops_are_sgn = !div_cmd(0)
         val div_op1_is_neg = div_ops_are_sgn && op_1(SCR1_XLEN-1)
         val div_op2_is_neg = div_ops_are_sgn && op_2(SCR1_XLEN-1)
@@ -250,27 +278,33 @@ class Logic_ops extends ALU_cmd with RVM_ext_local_params{
         //-------------------------------------------------------------------------------
         // Multiplier logic
         //-------------------------------------------------------------------------------
+        // Два бита: хотя бы один операнд Unsigned, обо операнда unsigned/signed
         val mul_cmd = Cat((cmd === SCR1_IALU_CMD_MULHU) || (cmd === SCR1_IALU_CMD_MULHSU), 
-                         (cmd === SCR1_IALU_CMD_MULHU) || (cmd === SCR1_IALU_CMD_MULH))
+                          (cmd === SCR1_IALU_CMD_MULHU) || (cmd === SCR1_IALU_CMD_MULH))
 
+        // нужно вернуть старшие биты
         val mul_cmd_hi     = mul_cmd.orR
+        // знаковые ли операндаы и их знаки 
         val mul_op1_is_sgn = !(mul_cmd(1) && mul_cmd(0))  // ~&mul_cmd
         val mul_op2_is_sgn = !mul_cmd(1)
         val mul_op1_sgn    = mul_op1_is_sgn && op_1(SCR1_XLEN-1)
         val mul_op2_sgn    = mul_op2_is_sgn && op_2(SCR1_XLEN-1)
 
+
         val mulSignals = if (SCR1_FAST_MUL) {
             // FAST_MUL signals
+            // операнды ненулевые только если команда - умножение 
             val mul_op1 = Mux(mdu_cmd_mul, Cat(mul_op1_sgn, op_1).asSInt, 0.S((SCR1_XLEN + 1).W))
             val mul_op2 = Mux(mdu_cmd_mul, Cat(mul_op2_sgn, op_2).asSInt, 0.S((SCR1_XLEN + 1).W))
             val mul_res = Mux(mdu_cmd_mul, 
-                (mul_op1 * mul_op2).asUInt(SCR1_MUL_RES_WIDTH - 1, 0).asSInt, 
-                0.S(SCR1_MUL_RES_WIDTH.W))
+                (mul_op1 * mul_op2), 
+                0.S((SCR1_MUL_RES_WIDTH + 2).W))
             
+            // результат заносится в поля класса 
             MulSignals(
                 op1 = Some(mul_op1),
                 op2 = Some(mul_op2), 
-                res = Some(mul_res)
+                res = Some(mul_res(SCR1_MUL_RES_WIDTH - 1, 0).asSInt)
             )
         } else {
             // ~FAST_MUL signals
@@ -358,7 +392,7 @@ class Logic_ops extends ALU_cmd with RVM_ext_local_params{
 
         when(mdu_cmd_div && !mdu_fsm_corr) {
             div_res_rem_c := mdu_sum_res(SCR1_MDU_SUM_WIDTH-1)
-            div_res_rem   := mdu_sum_res(SCR1_MDU_SUM_WIDTH-2, 0)
+            div_res_rem   := mdu_sum_res(SCR1_MDU_SUM_WIDTH-2, 0).asUInt(SCR1_XLEN-1, 0)
             
             val rem_zero = (Cat(mdu_sum_res, div_dvdnd_lo_next) === 0.U)
             div_quo_bit := !(div_op1_is_neg ^ div_res_rem_c) || 
@@ -441,9 +475,10 @@ class Logic_ops extends ALU_cmd with RVM_ext_local_params{
                 
                 if (SCR1_FAST_MUL) {
                     result := Mux(mul_cmd_hi,
-                        mulSignals.res.map(r => r(SCR1_MUL_RES_WIDTH-1, SCR1_XLEN).asSInt).getOrElse(0.S),
-                        mulSignals.res.map(r => r(SCR1_XLEN-1, 0).asSInt).getOrElse(0.S))
+                        (mulSignals.res.getOrElse(0.S))(SCR1_MUL_RES_WIDTH-1, SCR1_XLEN).asSInt,
+                        (mulSignals.res.getOrElse(0.S))(SCR1_XLEN-1, 0).asSInt)
                     res_rdy_o := true.B
+
                 } else {
                     switch(mdu_fsm_ff) {
                         is(IDLE) { result := 0.S; res_rdy_o := !mdu_iter_req }
@@ -483,6 +518,46 @@ class Logic_ops extends ALU_cmd with RVM_ext_local_params{
     
     }} //end of RVM fun and "}" for withClockandReset
 
+    def notRVMCommands(
+        op_1: SInt,
+        op_2: SInt,
+        cmd: UInt,
+        shiftAmount: UInt
+    ): (SInt, Bool) = { 
+        val result = WireDefault(0.S(SCR1_XLEN.W))
+        val cmp_res = WireDefault(false.B)
+
+        switch(cmd) {
+            is(SCR1_IALU_CMD_NONE) { result := 0.S }
+            is(SCR1_IALU_CMD_AND)  { result := op_1 & op_2 }
+            is(SCR1_IALU_CMD_OR)   { result := op_1 | op_2 }
+            is(SCR1_IALU_CMD_XOR)  { result := op_1 ^ op_2 }
+
+            is(SCR1_IALU_CMD_SLL)  { result := op_1 << shiftAmount }
+            is(SCR1_IALU_CMD_SRL)  { result := (op_1.asUInt >> shiftAmount).asSInt }
+            is(SCR1_IALU_CMD_SRA)  { result := op_1 >> shiftAmount }
+
+            is(SCR1_IALU_CMD_ADD)  { result := add_main(cmd, op_1, op_2) }  
+            is(SCR1_IALU_CMD_SUB)  { result := add_main(cmd, op_1, op_2) }  
+            
+            is(SCR1_IALU_CMD_SUB_LT)  { result  := Cat(0.U((SCR1_XLEN - 1).W), flags.sign ^ flags.overflow).asSInt
+                                        cmp_res := flags.sign ^ flags.overflow}  
+            is(SCR1_IALU_CMD_SUB_LTU) { result := Cat(0.U((SCR1_XLEN - 1).W), flags.carry).asSInt
+                                        cmp_res := flags.carry }   
+            is(SCR1_IALU_CMD_SUB_EQ)  { result := Cat(0.U((SCR1_XLEN - 1).W), flags.zero ).asSInt
+                                        cmp_res := flags.zero }  
+            is(SCR1_IALU_CMD_SUB_NE)  { result := Cat(0.U((SCR1_XLEN - 1).W), ~flags.zero).asSInt
+                                        cmp_res := ~flags.zero }  
+            is(SCR1_IALU_CMD_SUB_GE)  { result := Cat(0.U((SCR1_XLEN - 1).W), ~(flags.sign ^ flags.overflow)).asSInt
+                                        cmp_res := ~(flags.sign ^ flags.overflow) }  
+            is(SCR1_IALU_CMD_SUB_GEU) { result := Cat(0.U((SCR1_XLEN - 1).W), ~flags.carry ).asSInt
+                                        cmp_res := ~flags.carry }
+        } 
+
+        (result, cmp_res)
+    }
+
+
     def mainAdderMux(
     op_1: SInt,
     op_2: SInt,
@@ -505,55 +580,35 @@ class Logic_ops extends ALU_cmd with RVM_ext_local_params{
                        cmd === SCR1_IALU_CMD_REM || cmd === SCR1_IALU_CMD_REMU
 
 
-        when(isRvmCmd) {
-            if (SCR1_RVM_EXT) {
-                // RVM команды при включенном расширении
-                val cmd_vd = exu2ialu_rvm_cmd_vd_i.getOrElse(false.B)
-                val clk = clock.getOrElse(throw new Exception("Clock required for RVM operations"))
-                val rst = rst_n.getOrElse(false.B)
-                
-                val (rvm_result, rdy) = RVM_ext_part(
-                op_1.asUInt,
-                op_2.asUInt,
-                cmd,
-                cmd_vd,
-                clk,
-                rst
-                )
+        if (SCR1_RVM_EXT) {
+            // RVM команды при включенном расширении
+            val cmd_vd = exu2ialu_rvm_cmd_vd_i.getOrElse(false.B)
+            val clk = clock.getOrElse(throw new Exception("Clock required for RVM operations"))
+            val rst = rst_n.getOrElse(false.B)
+            
+            val (rvm_result, rdy) = RVM_ext_part(
+            op_1.asUInt,
+            op_2.asUInt,
+            cmd,
+            cmd_vd,
+            clk,
+            rst
+            )
+
+            when(isRvmCmd){
                 result := rvm_result
-                res_rdy_o := rdy}
-            else { 
-                    result := 0.S
-                    res_rdy_o := false.B
+                res_rdy_o := rdy
+            } otherwise
+            {
+                val (nonRvmResult, nonRvmCmp) = notRVMCommands(op_1, op_2, cmd, shiftAmount)
+            result := nonRvmResult
+            cmp_res := nonRvmCmp
             }
-        } otherwise {
-            switch(cmd) {
-                
-                is(SCR1_IALU_CMD_NONE) { result := 0.S }
-                is(SCR1_IALU_CMD_AND)  { result := op_1 & op_2 }
-                is(SCR1_IALU_CMD_OR)   { result := op_1 | op_2 }
-                is(SCR1_IALU_CMD_XOR)  { result := op_1 ^ op_2 }
-
-                is(SCR1_IALU_CMD_SLL)  { result := op_1 << shiftAmount }
-                is(SCR1_IALU_CMD_SRL)  { result := (op_1.asUInt >> shiftAmount).asSInt }
-                is(SCR1_IALU_CMD_SRA)  { result := op_1 >> shiftAmount }
-
-                is(SCR1_IALU_CMD_ADD)  { result := add_main(cmd, op_1, op_2) }  
-                is(SCR1_IALU_CMD_SUB)  { result := add_main(cmd, op_1, op_2) }  
-                
-                is(SCR1_IALU_CMD_SUB_LT)  { result  := Cat(0.U((SCR1_XLEN - 1).W), flags.sign ^ flags.overflow).asSInt
-                                            cmp_res := flags.sign ^ flags.overflow}  
-                is(SCR1_IALU_CMD_SUB_LTU) { result := Cat(0.U((SCR1_XLEN - 1).W), flags.carry).asSInt
-                                            cmp_res := flags.carry }   
-                is(SCR1_IALU_CMD_SUB_EQ)  { result := Cat(0.U((SCR1_XLEN - 1).W), flags.zero ).asSInt
-                                            cmp_res := flags.zero }  
-                is(SCR1_IALU_CMD_SUB_NE)  { result := Cat(0.U((SCR1_XLEN - 1).W), ~flags.zero).asSInt
-                                            cmp_res := ~flags.zero }  
-                is(SCR1_IALU_CMD_SUB_GE)  { result := Cat(0.U((SCR1_XLEN - 1).W), ~(flags.sign ^ flags.overflow)).asSInt
-                                            cmp_res := ~(flags.sign ^ flags.overflow) }  
-                is(SCR1_IALU_CMD_SUB_GEU) { result := Cat(0.U((SCR1_XLEN - 1).W), ~flags.carry ).asSInt
-                                            cmp_res := ~flags.carry }
-            } 
+            }
+        else { 
+            val (nonRvmResult, nonRvmCmp) = notRVMCommands(op_1, op_2, cmd, shiftAmount)
+            result := nonRvmResult
+            cmp_res := nonRvmCmp
         }
 
         (result, cmp_res, res_rdy_o)

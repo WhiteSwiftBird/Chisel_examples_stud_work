@@ -2,7 +2,7 @@ import chisel3._
 import _root_.circt.stage.ChiselStage
 
 
-class ALU_top extends RawModule with SCR1Config {
+class scr1_pipe_ialu extends RawModule with SCR1Config {
   
   // Вспомогательные методы для ширины
   def XLEN_W: chisel3.Width = SCR1_XLEN.W
@@ -56,7 +56,7 @@ class ALU_top extends RawModule with SCR1Config {
 
 
 object ALU_gen extends App {
-    ChiselStage.emitSystemVerilogFile(new ALU_top, 
+    ChiselStage.emitSystemVerilogFile(new scr1_pipe_ialu, 
   args = Array("--target-dir", "../generated_SV_files/ALU_gen/"),
   firtoolOpts = Array("-disable-all-randomization",
                       "-strip-debug-info",
