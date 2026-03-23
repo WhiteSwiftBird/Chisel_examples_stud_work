@@ -170,7 +170,7 @@ module scr1_pipe_ialu(
     if (exu2ialu_rvm_cmd_vd_i & ~rdy)
       div_dvdnd_lo_ff <= div_dvdnd_lo_next[31:0];
   end // always @(posedge)
-  assign ialu2exu_rvm_res_rdy_o = isRvmCmd & rdy;
+  assign ialu2exu_rvm_res_rdy_o = ~isRvmCmd | rdy;
   assign ialu2exu_main_res_o =
     isRvmCmd
       ? (_GEN_2

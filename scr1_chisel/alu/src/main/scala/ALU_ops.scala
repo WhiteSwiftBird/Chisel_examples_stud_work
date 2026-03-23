@@ -571,7 +571,7 @@ class Logic_ops extends ALU_cmd with RVM_ext_local_params{
         val result = WireDefault(0.S(SCR1_XLEN.W))
         val shiftAmount = op_2(4, 0).asUInt
         
-        val res_rdy_o = WireDefault(false.B)
+        val res_rdy_o = WireDefault(true.B)
         val cmp_res = WireDefault(false.B)
 
         val isRvmCmd = cmd === SCR1_IALU_CMD_MUL || cmd === SCR1_IALU_CMD_MULHU ||
