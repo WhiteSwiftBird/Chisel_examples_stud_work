@@ -63,10 +63,10 @@ module scr1_pipe_ialu(
   wire [63:0] mul_res =
     mdu_cmd_mul ? {{31{mul_op1[32]}}, mul_op1} * {{31{mul_op2[32]}}, mul_op2} : 64'h0;
   reg  [31:0] div_dvdnd_lo_ff;
-  wire [32:0] div_dvdnd_lo_next =
+  wire [31:0] div_dvdnd_lo_next_33 =
     ~mdu_cmd_div | mdu_fsm_corr
-      ? 33'h0
-      : {(|mdu_fsm_ff) ? div_dvdnd_lo_ff : exu2ialu_main_op1_i, 1'h0};
+      ? 32'h0
+      : {(|mdu_fsm_ff) ? div_dvdnd_lo_ff[30:0] : exu2ialu_main_op1_i[30:0], 1'h0};
   wire        _GEN_0 = mdu_cmd_div & mdu_fsm_ff != 2'h2;
   assign div_res_rem_c = _GEN_0 & mdu_sum_res[32];
   assign div_res_rem = _GEN_0 ? mdu_sum_res[31:0] : 32'h0;
@@ -74,7 +74,7 @@ module scr1_pipe_ialu(
     {(|mdu_fsm_ff) ? mdu_res_lo_ff[30:0] : 31'h0,
      _GEN_0
        & (~_div_quo_bit_T | div_op1_is_neg
-          & {mdu_sum_res, div_dvdnd_lo_next[32:1]} == 65'h0)};
+          & {mdu_sum_res, div_dvdnd_lo_next_33[31:1]} == 64'h0)};
   wire        _GEN_1 = (mdu_cmd_div ? 2'h2 : {1'h0, mdu_cmd_mul}) == 2'h2;
   assign mdu_sum_sub =
     _GEN_1
@@ -168,7 +168,7 @@ module scr1_pipe_ialu(
       end
     end
     if (exu2ialu_rvm_cmd_vd_i & ~rdy)
-      div_dvdnd_lo_ff <= div_dvdnd_lo_next[31:0];
+      div_dvdnd_lo_ff <= div_dvdnd_lo_next_33;
   end // always @(posedge)
   assign ialu2exu_rvm_res_rdy_o = ~isRvmCmd | rdy;
   assign ialu2exu_main_res_o =

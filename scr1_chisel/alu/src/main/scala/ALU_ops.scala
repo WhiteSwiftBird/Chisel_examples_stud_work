@@ -377,9 +377,10 @@ class Logic_ops extends ALU_cmd with RVM_ext_local_params{
         //------------------------------------------------------------------------------
         val div_dvdnd_lo_upd = cmd_vd_i && !res_rdy_o
         val div_dvdnd_lo_ff   = Reg(UInt(SCR1_XLEN.W))
-        val div_dvdnd_lo_next = Mux(!mdu_cmd_div || mdu_fsm_corr, 0.U,
+        val div_dvdnd_lo_next_33 = Mux(!mdu_cmd_div || mdu_fsm_corr, 0.U,
                                 Mux(mdu_fsm_idle, op_1 << 1.U,
                                                 div_dvdnd_lo_ff << 1.U))
+        val div_dvdnd_lo_next = div_dvdnd_lo_next_33(SCR1_XLEN-1, 0)
         
         div_res_rem_c := false.B
         div_res_rem := 0.U
