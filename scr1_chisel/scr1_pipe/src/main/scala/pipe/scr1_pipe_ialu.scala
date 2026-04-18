@@ -1,8 +1,12 @@
+package scr1_pipe_ialu
+
 import chisel3._
 import chisel3.util._
 
+import arch_description._
+import SCR1Config._
 
-trait ALU_cmd extends  SCR1Config{
+trait ALU_cmd {
     val opcodes: Map[String, UInt] = List(
         "NONE", 
         "AND", 
@@ -57,7 +61,7 @@ trait ALU_cmd extends  SCR1Config{
 }
 
 
-trait RVM_ext_local_params extends SCR1Config{
+trait RVM_ext_local_params{
 
     val SCR1_MUL_RES_WIDTH = 2 * SCR1_XLEN
 
@@ -86,7 +90,7 @@ object AluMduFsmState extends ChiselEnum {
     val SCR1_IALU_MDU_FSM_IDLE = IDLE
     val SCR1_IALU_MDU_FSM_ITER = ITER
     val SCR1_IALU_MDU_FSM_CORR = CORR
-    }
+}
 
 object AluMduCmd extends ChiselEnum {
     val NONE, MUL, DIV = Value
@@ -94,7 +98,7 @@ object AluMduCmd extends ChiselEnum {
     val SCR1_IALU_MDU_NONE = NONE
     val SCR1_IALU_MDU_MUL = MUL
     val SCR1_IALU_MDU_DIV = DIV
-    }
+}
 
 case class MulSignals(
     op1: Option[SInt] = None,
@@ -213,7 +217,7 @@ class Logic_ops extends ALU_cmd with RVM_ext_local_params{
         val div_res_rem_c = Wire(Bool())
         val div_res_rem = Wire(UInt(SCR1_XLEN.W))
         val div_res_quo = Wire(UInt(SCR1_XLEN.W))
-        val div_quo_bit = Wire(Bool())
+        val div_quo_bit = Wire(UInt(1.W))
 
         // вспомогательный сигнал для деления
         val div_cmd = Cat(
@@ -379,21 +383,20 @@ class Logic_ops extends ALU_cmd with RVM_ext_local_params{
         val div_dvdnd_lo_ff   = Reg(UInt(SCR1_XLEN.W))
         val div_dvdnd_lo_next = (Mux(!mdu_cmd_div || mdu_fsm_corr, 0.U,
                                 Mux(mdu_fsm_idle, op_1 << 1.U,
-                                                  div_dvdnd_lo_ff << 1.U))
-                                )(SCR1_XLEN-1, 0)
+                                                div_dvdnd_lo_ff << 1.U)))(SCR1_XLEN-1, 0)
 
         
         div_res_rem_c := false.B
         div_res_rem := 0.U
         div_res_quo := 0.U
-        div_quo_bit := false.B
+        div_quo_bit := 0.U
 
         when(div_dvdnd_lo_upd) {
             div_dvdnd_lo_ff := div_dvdnd_lo_next
         }
 
         when(mdu_cmd_div && !mdu_fsm_corr) {
-            div_res_rem_c := mdu_sum_res(SCR1_MDU_SUM_WIDTH-1)
+            div_res_rem_c := mdu_sum_res(SCR1_MDU_SUM_WIDTH-1).asBool
             div_res_rem   := mdu_sum_res(SCR1_MDU_SUM_WIDTH-2, 0).asUInt(SCR1_XLEN-1, 0)
             
             val rem_zero = (Cat(mdu_sum_res, div_dvdnd_lo_next) === 0.U)
@@ -509,7 +512,7 @@ class Logic_ops extends ALU_cmd with RVM_ext_local_params{
                     is(CORR) {
                         result := Mux(div_cmd_rem,
                             mdu_sum_res(SCR1_XLEN-1, 0).asSInt,
-                            -mdu_res_lo_ff(SCR1_XLEN-1, 0).asSInt)
+                            -(mdu_res_lo_ff(SCR1_XLEN-1, 0).asSInt))
                         res_rdy_o := true.B
                     }
                 }
@@ -618,7 +621,7 @@ class Logic_ops extends ALU_cmd with RVM_ext_local_params{
 }
 
 
-class scr1_pipe_ialu extends RawModule with SCR1Config {
+class scr1_pipe_ialu extends RawModule{
   
   // Вспомогательные методы для ширины
   def XLEN_W: chisel3.Width = SCR1_XLEN.W

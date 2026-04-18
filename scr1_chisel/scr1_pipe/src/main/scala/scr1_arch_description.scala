@@ -1,6 +1,8 @@
+package arch_description
+
 import chisel3._
 
-trait SCR1Config {
+object SCR1Config {
   // Базовые параметры ширины
   val SCR1_XLEN: Int = 32
   val SCR1_IMEM_AWIDTH: Int = SCR1_XLEN
@@ -20,4 +22,6 @@ trait SCR1Config {
     val totalOps = baseOps + rvmOps
     chisel3.util.log2Ceil(totalOps + 1) 
   }
+
+  val SCR1_CLKCTRL_EN: Boolean = false
 }
