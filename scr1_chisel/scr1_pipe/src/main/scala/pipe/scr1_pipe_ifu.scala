@@ -554,9 +554,9 @@ class IMEM_cntr extends Module{
     val imem_pnd_txns_cnt_next = Wire(UInt(IFU_localparams.SCR1_TXN_CNT_W.W))
     imem_pnd_txns_cnt := imem_pnd_txns_cnt_next
 
-    imem_pnd_txns_cnt_next := (imem_pnd_txns_cnt + 
+    imem_pnd_txns_cnt_next := Mux(imem_pnd_txns_cnt_upd, (imem_pnd_txns_cnt + 
                             Mux(io.imem_handshake_done, 1.U, 0.U) - 
-                            Mux(io.imem_resp_received, 1.U, 0.U))
+                            Mux(io.imem_resp_received, 1.U, 0.U)), imem_pnd_txns_cnt)
 
     io.imem_pnd_txns_q_full := imem_pnd_txns_cnt.andR
 
