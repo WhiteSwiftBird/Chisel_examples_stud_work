@@ -558,17 +558,19 @@ class IMEM_cntr extends Module{
                             Mux(io.imem_handshake_done, 1.U, 0.U) - 
                             Mux(io.imem_resp_received, 1.U, 0.U))
 
-    io.imem_pnd_txns_q_full := imem_pnd_txns_cnt === ((1 << IFU_localparams.SCR1_TXN_CNT_W) - 1).U
+    io.imem_pnd_txns_q_full := imem_pnd_txns_cnt.andR
 
     // IMEM discard responses counter
     val imem_resp_discard_cnt = RegInit(0.U(IFU_localparams.SCR1_TXN_CNT_W.W))
     val imem_resp_discard_cnt_next = Wire(UInt(IFU_localparams.SCR1_TXN_CNT_W.W))
     imem_resp_discard_cnt := imem_resp_discard_cnt_next
 
-   imem_resp_discard_cnt_next := MuxCase(imem_resp_discard_cnt - 1.U, Seq(
+   imem_resp_discard_cnt_next := Mux(imem_pnd_txns_cnt_upd,
+                                MuxCase(imem_resp_discard_cnt - 1.U, Seq(
                                 (io.exu2ifu_pc_new_req_i)     -> (imem_pnd_txns_cnt_next - io.imem_handshake_done),
                                 (io.imem_resp_er_discard_pnd) -> imem_pnd_txns_cnt_next
-                                ))
+                                )),
+                                imem_resp_discard_cnt)
 
     io.imem_vd_pnd_txns_cnt := (imem_pnd_txns_cnt - imem_resp_discard_cnt)
     io.imem_resp_discard_req := imem_resp_discard_cnt =/= 0.U
