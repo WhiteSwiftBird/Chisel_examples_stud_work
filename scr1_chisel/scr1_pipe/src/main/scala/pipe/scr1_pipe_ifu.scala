@@ -218,17 +218,21 @@ class scr1_pipe_ifu_4gen extends Module{
     //------------------------------------------------------------------------------
     val imem_addr_upd = imem_handshake_done || io_2exu.exu2ifu_pc_new_req_i
 
-    val imem_addr_ff = RegInit(0.U(SCR1_XLEN.W))
-    val imem_addr_next = Wire(UInt(SCR1_XLEN.W))
-    imem_addr_ff := imem_addr_next
+    val imem_addr_ff_full = RegInit(0.U(SCR1_XLEN.W))
+    val imem_addr_next_full = Wire(UInt(SCR1_XLEN.W))
+    imem_addr_ff_full := imem_addr_next_full
+
+    val imem_addr_next = Wire(UInt((SCR1_XLEN - 2).W))
+    imem_addr_next_full := Cat(imem_addr_next, 0.U(2.W))
+    val imem_addr_ff = imem_addr_ff_full(SCR1_XLEN - 1, 2)
 
     imem_addr_next := Mux(imem_addr_upd,
                         Mux(io_2exu.exu2ifu_pc_new_req_i,
                             io_2exu.exu2ifu_pc_new_i(SCR1_XLEN-1, 2)+ imem_handshake_done,
-                            Mux(imem_addr_ff(5, 2).andR,
+                            Mux(imem_addr_ff_full(5, 2).andR,
                                     imem_addr_ff       + imem_handshake_done,
-                                Cat(imem_addr_ff(SCR1_XLEN-1, 6), 
-                                    imem_addr_ff(5, 2) + imem_handshake_done)
+                                Cat(imem_addr_ff_full(SCR1_XLEN-1, 6), 
+                                    imem_addr_ff_full(5, 2) + imem_handshake_done)
                             )
                         ),
                         imem_addr_ff

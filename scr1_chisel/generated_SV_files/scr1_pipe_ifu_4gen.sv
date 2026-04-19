@@ -49,7 +49,8 @@ module scr1_pipe_ifu_4gen(
   wire [1:0]  _GEN_2 = _instructionQueue_io_q_wptr[1:0] + 2'h1;
   wire [1:0]  _q_err_next_T = _instructionQueue_io_q_rptr[1:0] + 2'h1;
   wire        q_rd_hword = ~(&(_q_data_ext_R1_data[1:0])) | _q_err_ext_R1_data;
-  reg  [31:0] imem_addr_ff;
+  reg  [31:0] imem_addr_ff_full;
+  wire [29:0] _GEN_3 = {29'h0, imem_handshake_done};
   assign io_2Mem_ifu2imem_req_o_0 =
     io_2exu_exu2ifu_pc_new_req_i & ~_imemCntr_io_imem_pnd_txns_q_full
     & ~io_ctrl_pipe2ifu_stop_fetch_i | _ifuFSM_io_ifu_fsm_fetch
@@ -59,16 +60,18 @@ module scr1_pipe_ifu_4gen(
     & (~_instructionQueue_io_q_has_1_ocpd_hw | q_rd_hword);
   always @(posedge clock) begin
     if (reset)
-      imem_addr_ff <= 32'h0;
-    else if (imem_handshake_done | io_2exu_exu2ifu_pc_new_req_i)
-      imem_addr_ff <=
-        io_2exu_exu2ifu_pc_new_req_i
-          ? {2'h0, io_2exu_exu2ifu_pc_new_i[31:2] + {29'h0, imem_handshake_done}}
-          : (&(imem_addr_ff[5:2]))
-              ? imem_addr_ff + {31'h0, imem_handshake_done}
-              : {2'h0,
-                 imem_addr_ff[31:6],
-                 imem_addr_ff[5:2] + {3'h0, imem_handshake_done}};
+      imem_addr_ff_full <= 32'h0;
+    else
+      imem_addr_ff_full <=
+        {imem_handshake_done | io_2exu_exu2ifu_pc_new_req_i
+           ? (io_2exu_exu2ifu_pc_new_req_i
+                ? io_2exu_exu2ifu_pc_new_i[31:2] + _GEN_3
+                : (&(imem_addr_ff_full[5:2]))
+                    ? imem_addr_ff_full[31:2] + _GEN_3
+                    : {imem_addr_ff_full[31:6],
+                       imem_addr_ff_full[5:2] + {3'h0, imem_handshake_done}})
+           : imem_addr_ff_full[31:2],
+         2'h0};
   end // always @(posedge)
   InstrTypeFinder instrTypeFinder (
     .clock                   (clock),
@@ -174,7 +177,9 @@ module scr1_pipe_ifu_4gen(
   );
   assign io_2Mem_ifu2imem_req_o = io_2Mem_ifu2imem_req_o_0;
   assign io_2Mem_ifu2imem_addr_o =
-    {io_2exu_exu2ifu_pc_new_req_i ? io_2exu_exu2ifu_pc_new_i[31:2] : imem_addr_ff[29:0],
+    {io_2exu_exu2ifu_pc_new_req_i
+       ? io_2exu_exu2ifu_pc_new_i[31:2]
+       : imem_addr_ff_full[31:2],
      2'h0};
   assign io_2idu_ifu2idu_instr_o =
     {(&(_q_data_ext_R1_data[1:0])) ? _q_data_ext_R0_data : 16'h0, _q_data_ext_R1_data};

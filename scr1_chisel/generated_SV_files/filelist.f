@@ -1,1 +1,9 @@
-scr1_pipe_ialu.sv
+InstrTypeFinder.sv
+Instr_rvi_reg.sv
+IFUFSM.sv
+InstructionQueue.sv
+IMEM_cntr.sv
+q_data_4x16.sv
+q_err_4x1.sv
+scr1_pipe_ifu_4gen.sv
+scr1_pipe_ifu.sv
