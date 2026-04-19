@@ -222,25 +222,29 @@ class scr1_pipe_ifu_4gen extends Module{
     val imem_addr_next = Wire(UInt(SCR1_XLEN.W))
     imem_addr_ff := imem_addr_next
 
-    // Logic for next value
     imem_addr_next := Mux(imem_addr_upd,
                         Mux(io_2exu.exu2ifu_pc_new_req_i,
-                            io_2exu.exu2ifu_pc_new_i(SCR1_XLEN-1, 2),
+                            io_2exu.exu2ifu_pc_new_i(SCR1_XLEN-1, 2)+ imem_handshake_done,
                             Mux(imem_addr_ff(5, 2).andR,
-                                imem_addr_ff + imem_handshake_done,
+                                    imem_addr_ff       + imem_handshake_done,
                                 Cat(imem_addr_ff(SCR1_XLEN-1, 6), 
                                     imem_addr_ff(5, 2) + imem_handshake_done)
                             )
                         ),
-                        imem_addr_ff  // hold current value
+                        imem_addr_ff
                         )
 
     val imem_resp_discard_cnt_upd = io_2exu.exu2ifu_pc_new_req_i || imem_resp_er || (imem_resp_ok && imem_resp_discard_req)
 
     // IFU <-> IMEM interface output signals
     //------------------------------------------------------------------------------
-    io_2Mem.ifu2imem_req_o := ifu_fsm_fetch && !imem_pnd_txns_q_full && q_has_free_slots
-    io_2Mem.ifu2imem_addr_o := Cat(imem_addr_ff, 0.U(2.W))
+    io_2Mem.ifu2imem_req_o := (io_2exu.exu2ifu_pc_new_req_i && !imem_pnd_txns_q_full && !io_ctrl.pipe2ifu_stop_fetch_i) ||
+                              (ifu_fsm_fetch && !imem_pnd_txns_q_full && q_has_free_slots)
+    
+    io_2Mem.ifu2imem_addr_o := Mux(io_2exu.exu2ifu_pc_new_req_i,
+                                    Cat(io_2exu.exu2ifu_pc_new_i(SCR1_XLEN-1, 2), 0.U(2.W)),
+                                    Cat(imem_addr_ff, 0.U(2.W))                              
+                                )
     io_2Mem.ifu2imem_cmd_o := SCR1_MEM_CMD_RD
 
     if (SCR1_CLKCTRL_EN) {
@@ -557,9 +561,10 @@ class IMEM_cntr extends Module{
     val imem_resp_discard_cnt_next = Wire(UInt(IFU_localparams.SCR1_TXN_CNT_W.W))
     imem_resp_discard_cnt := imem_resp_discard_cnt_next
 
-    imem_resp_discard_cnt_next := Mux(io.exu2ifu_pc_new_req_i || io.imem_resp_er_discard_pnd,
-                                    imem_pnd_txns_cnt_next,
-                                    (imem_resp_discard_cnt - 1.U))
+   imem_resp_discard_cnt_next := MuxCase(imem_resp_discard_cnt - 1.U, Seq(
+                                (io.exu2ifu_pc_new_req_i)     -> (imem_pnd_txns_cnt_next - io.imem_handshake_done),
+                                (io.imem_resp_er_discard_pnd) -> imem_pnd_txns_cnt_next
+                                ))
 
     io.imem_vd_pnd_txns_cnt := (imem_pnd_txns_cnt - imem_resp_discard_cnt)
     io.imem_resp_discard_req := imem_resp_discard_cnt =/= 0.U
