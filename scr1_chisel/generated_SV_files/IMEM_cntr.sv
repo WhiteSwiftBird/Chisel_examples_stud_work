@@ -8,7 +8,8 @@ module IMEM_cntr(
   input        io_exu2ifu_pc_new_req_i,
                io_imem_resp_er_discard_pnd,
   output [2:0] io_imem_vd_pnd_txns_cnt,
-  output       io_imem_resp_discard_req
+  output       io_imem_resp_discard_req,
+  input        io_imem_resp_discard_cnt_upd
 );
 
   reg [2:0] imem_pnd_txns_cnt;
@@ -19,16 +20,19 @@ module IMEM_cntr(
       imem_resp_discard_cnt <= 3'h0;
     end
     else begin
-      automatic logic imem_pnd_txns_cnt_upd;
+      automatic logic       imem_pnd_txns_cnt_upd;
+      automatic logic [2:0] _GEN;
+      automatic logic [2:0] _imem_pnd_txns_cnt_next_T_4;
       imem_pnd_txns_cnt_upd = io_imem_handshake_done ^ io_imem_resp_received;
-      if (imem_pnd_txns_cnt_upd) begin
-        automatic logic [2:0] _GEN = {2'h0, io_imem_handshake_done};
-        automatic logic [2:0] _imem_pnd_txns_cnt_next_T_4 =
-          imem_pnd_txns_cnt + _GEN - {2'h0, io_imem_resp_received};
+      _GEN = {2'h0, io_imem_handshake_done};
+      _imem_pnd_txns_cnt_next_T_4 =
+        imem_pnd_txns_cnt + _GEN - {2'h0, io_imem_resp_received};
+      if (imem_pnd_txns_cnt_upd)
+        imem_pnd_txns_cnt <= _imem_pnd_txns_cnt_next_T_4;
+      if (io_imem_resp_discard_cnt_upd) begin
         automatic logic [2:0] imem_pnd_txns_cnt_next;
         imem_pnd_txns_cnt_next =
           imem_pnd_txns_cnt_upd ? _imem_pnd_txns_cnt_next_T_4 : imem_pnd_txns_cnt;
-        imem_pnd_txns_cnt <= _imem_pnd_txns_cnt_next_T_4;
         imem_resp_discard_cnt <=
           io_exu2ifu_pc_new_req_i
             ? imem_pnd_txns_cnt_next - _GEN

@@ -154,11 +154,13 @@ class scr1_pipe_ifu_4gen extends Module{
     // 7. Imem
     val imem_handshake_done = Wire(Bool())
     val imem_resp_received = Wire(Bool())
+    val imem_resp_discard_cnt_upd = Wire(Bool())
 
     imemCntr.io.imem_handshake_done := imem_handshake_done
     imemCntr.io.imem_resp_received := imem_resp_received
     imemCntr.io.exu2ifu_pc_new_req_i := io_2exu.exu2ifu_pc_new_req_i
     imemCntr.io.imem_resp_er_discard_pnd := imem_resp_er_discard_pnd
+    imemCntr.io.imem_resp_discard_cnt_upd := imem_resp_discard_cnt_upd
 
     val imem_pnd_txns_cnt = imemCntr.io.imem_pnd_txns_cnt
     val imem_pnd_txns_q_full = imemCntr.io.imem_pnd_txns_q_full
@@ -176,6 +178,7 @@ class scr1_pipe_ifu_4gen extends Module{
     imem_resp_er_discard_pnd := imem_resp_er && !imem_resp_discard_req
 
     imem_handshake_done := io_2Mem.ifu2imem_req_o && io_2Mem.imem2ifu_req_ack_i
+    imem_resp_discard_cnt_upd := io_2exu.exu2ifu_pc_new_req_i || imem_resp_er || (imem_resp_ok && imem_resp_discard_req)
 
 
     // Queue data and error flag registers
@@ -238,7 +241,7 @@ class scr1_pipe_ifu_4gen extends Module{
                         imem_addr_ff
                         )
 
-    val imem_resp_discard_cnt_upd = io_2exu.exu2ifu_pc_new_req_i || imem_resp_er || (imem_resp_ok && imem_resp_discard_req)
+    
 
     // IFU <-> IMEM interface output signals
     //------------------------------------------------------------------------------
@@ -544,6 +547,7 @@ class IMEM_cntr extends Module{
         val imem_resp_er_discard_pnd = Input(Bool())
         val imem_vd_pnd_txns_cnt = Output(UInt(IFU_localparams.SCR1_TXN_CNT_W.W))
         val imem_resp_discard_req = Output(Bool())
+        val imem_resp_discard_cnt_upd = Input(Bool())
     })
 
     // Pending IMEM transactions counter
@@ -565,7 +569,7 @@ class IMEM_cntr extends Module{
     val imem_resp_discard_cnt_next = Wire(UInt(IFU_localparams.SCR1_TXN_CNT_W.W))
     imem_resp_discard_cnt := imem_resp_discard_cnt_next
 
-   imem_resp_discard_cnt_next := Mux(imem_pnd_txns_cnt_upd,
+   imem_resp_discard_cnt_next := Mux(io.imem_resp_discard_cnt_upd,
                                 MuxCase(imem_resp_discard_cnt - 1.U, Seq(
                                 (io.exu2ifu_pc_new_req_i)     -> (imem_pnd_txns_cnt_next - io.imem_handshake_done),
                                 (io.imem_resp_er_discard_pnd) -> imem_pnd_txns_cnt_next

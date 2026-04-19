@@ -121,15 +121,18 @@ module scr1_pipe_ifu_4gen(
     .io_imem_vd_pnd_txns_cnt  (_imemCntr_io_imem_vd_pnd_txns_cnt)
   );
   IMEM_cntr imemCntr (
-    .clock                       (clock),
-    .reset                       (reset),
-    .io_imem_handshake_done      (imem_handshake_done),
-    .io_imem_resp_received       (imem_resp_received),
-    .io_imem_pnd_txns_q_full     (_imemCntr_io_imem_pnd_txns_q_full),
-    .io_exu2ifu_pc_new_req_i     (io_2exu_exu2ifu_pc_new_req_i),
-    .io_imem_resp_er_discard_pnd (imem_resp_er_discard_pnd),
-    .io_imem_vd_pnd_txns_cnt     (_imemCntr_io_imem_vd_pnd_txns_cnt),
-    .io_imem_resp_discard_req    (_imemCntr_io_imem_resp_discard_req)
+    .clock                        (clock),
+    .reset                        (reset),
+    .io_imem_handshake_done       (imem_handshake_done),
+    .io_imem_resp_received        (imem_resp_received),
+    .io_imem_pnd_txns_q_full      (_imemCntr_io_imem_pnd_txns_q_full),
+    .io_exu2ifu_pc_new_req_i      (io_2exu_exu2ifu_pc_new_req_i),
+    .io_imem_resp_er_discard_pnd  (imem_resp_er_discard_pnd),
+    .io_imem_vd_pnd_txns_cnt      (_imemCntr_io_imem_vd_pnd_txns_cnt),
+    .io_imem_resp_discard_req     (_imemCntr_io_imem_resp_discard_req),
+    .io_imem_resp_discard_cnt_upd
+      (io_2exu_exu2ifu_pc_new_req_i | imem_resp_er | imem_resp_ok
+       & _imemCntr_io_imem_resp_discard_req)
   );
   q_data_4x16 q_data_ext (
     .R0_addr (_q_err_next_T),
